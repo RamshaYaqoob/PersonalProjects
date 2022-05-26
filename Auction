@@ -1,0 +1,82 @@
+contract OpenAuction{
+ 
+    address payable public beneficiary;
+    
+    //Time in Seconds
+
+    uint public auctionEndTime;
+    
+    // Current state.
+
+    address public highestBidder;
+   
+    uint public highestBid;
+
+    // Allowed withdrawls of previous bids.
+   
+    mapping(address => uint) public pendingReturns;
+  
+ 
+    bool public ended;
+
+    event HighestBidIncreased(address bidder, uint amount);
+
+    event AuctionEnded(address winner, uint amount);
+   
+    constructor (
+        address payable _beneficiary,
+        uint _biddingTime
+    ) public {
+        beneficiary = _beneficiary;
+        auctionEndTime = now + _biddingTime;
+    }
+    
+   //No refund if lose
+    function bid() public payable {
+       
+        require(now <= auctionEndTime, "Auction ended.");
+        
+       //If not highest bid, money returned 
+        
+        require(msg.value > highestBid, "Highest bid is there, place higher.");
+        
+        if (highestBid != 0) {
+          //Can withdraw 
+            pendingReturns[highestBidder] += highestBid;
+        }
+        
+        highestBidder = msg.sender;
+        highestBid = msg.value;
+        
+        
+        emit HighestBidIncreased(msg.sender, msg.value);
+    }
+    
+  
+    function withdraw() public returns (bool) {
+        uint amount = pendingReturns[msg.sender];
+        if (amount > 0) {
+            pendingReturns[msg.sender] = 0;
+            
+            if (!msg.sender.send(amount)) {
+                pendingReturns[msg.sender] = amount;
+                return false;
+            }
+            return true;
+        }
+    }
+    
+    // End auction
+  
+    function auctionEnd() public {
+        
+        require(now >= auctionEndTime, "Auction not yet ended.");
+       
+        require(!ended, "auctionEnd has already been called.");
+        
+        ended = true;
+        emit AuctionEnded(highestBidder, highestBid);
+        
+        beneficiary.transfer(highestBid);
+    }
+}
